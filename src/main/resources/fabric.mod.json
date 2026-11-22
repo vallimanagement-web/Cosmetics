@@ -1,0 +1,19 @@
+{
+  "schemaVersion": 1,
+  "id": "vallicosmo",
+  "version": "${version}",
+  "name": "Vallicosmo",
+  "description": "Cosmetics-Menü mit animierten Flügeln, Heiligenscheinen, Hüten und Spuren. Öffnen mit /vallicosmo.",
+  "authors": ["Valli"],
+  "license": "MIT",
+  "environment": "client",
+  "entrypoints": {
+    "client": ["dev.vallicosmo.VallicosmoClient"]
+  },
+  "depends": {
+    "fabricloader": ">=0.18.1",
+    "minecraft": "~1.21.11",
+    "java": ">=21",
+    "fabric-api": "*"
+  }
+}
