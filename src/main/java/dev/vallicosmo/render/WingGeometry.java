@@ -12,7 +12,7 @@ import dev.vallicosmo.util.Noise;
  * Zwei Durchgänge: base() = solide Röhren, glow() = additiver Schein + wandernde Lichtimpulse.
  */
 public final class WingGeometry {
-	public enum Shape { ZIGZAG, CANE, FLAME }
+	public enum Shape { ZIGZAG, CANE, FLAME, STORM, STORM_CANDY }
 
 	public record Style(Shape shape, int base, int rim, int pulse, int glow, float pulseSpeed) {
 	}
@@ -31,6 +31,9 @@ public final class WingGeometry {
 			case WINGS_VOID -> new Style(Shape.ZIGZAG, 0xFF14082A, 0xFF3B1A66, 0xFF4DF3FF, 0xFFB45CFF, 0.045f);
 			case WINGS_CANDY -> new Style(Shape.CANE, 0xFFD6182B, 0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFC0C8, 0.025f);
 			case WINGS_INFERNO -> new Style(Shape.FLAME, 0xFFB01806, 0xFFFF7A18, 0xFFFFE066, 0xFFFF7A18, 0.07f);
+			// Sturm-Schwingen: base = dunkelstes Gefieder, rim = hellstes Gefieder, pulse = Blitzlicht, glow = Schein
+			case WINGS_STORM -> new Style(Shape.STORM, 0xFF07070B, 0xFFC2C2D0, 0xFFFFFFFF, 0xFFE6ECFF, 0.045f);
+			case WINGS_STORM_CANDY -> new Style(Shape.STORM_CANDY, 0xFFD6182B, 0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFC0C8, 0.03f);
 			default -> null;
 		};
 	}
@@ -58,7 +61,7 @@ public final class WingGeometry {
 
 	/** Kurzes Aufleuchten aller Blitze etwa alle 3 Sekunden (t in Ticks). */
 	public static float flash(Style st, float t) {
-		if (st.shape() != Shape.ZIGZAG) {
+		if (st.shape() != Shape.ZIGZAG && st.shape() != Shape.STORM) {
 			return 0f;
 		}
 		float ph = t % 58f;
@@ -127,6 +130,7 @@ public final class WingGeometry {
 					case ZIGZAG -> 0.032f * (1f - 0.5f * f);
 					case CANE -> 0.03f;
 					case FLAME -> 0.034f * (1f - f) + 0.004f;
+						default -> 0.03f;
 				};
 			} else {
 				int h = j - segs;
@@ -197,6 +201,10 @@ public final class WingGeometry {
 
 	/** Durchgang 1: solide, schattierte Röhren. */
 	public static void base(Mesh m, Style st, float t, float flap) {
+		if (st.shape() == Shape.STORM || st.shape() == Shape.STORM_CANDY) {
+			GothicWings.base(m, st, t, flap);
+			return;
+		}
 		for (int s = 0; s < 2; s++) {
 			float side = s == 0 ? 1f : -1f;
 			float[] ref = refFor(side, flap);
@@ -218,6 +226,7 @@ public final class WingGeometry {
 							? Colors.lerp(st.base(), st.rim(), g * 2f)
 							: Colors.lerp(st.rim(), st.pulse(), (g - 0.5f) * 2f);
 					};
+						default -> (seg, k) -> st.base();
 				};
 				m.loft(sp.c, sp.r, sp.n, 6, ref, col, true, true);
 
@@ -231,6 +240,10 @@ public final class WingGeometry {
 
 	/** Durchgang 2 (additiv, fullbright): Schein um die Röhren + wandernde Lichtimpulse. */
 	public static void glow(Mesh m, Style st, float t, float flap) {
+		if (st.shape() == Shape.STORM || st.shape() == Shape.STORM_CANDY) {
+			GothicWings.glow(m, st, t, flap);
+			return;
+		}
 		float flash = flash(st, t);
 		for (int s = 0; s < 2; s++) {
 			float side = s == 0 ? 1f : -1f;
@@ -244,6 +257,7 @@ public final class WingGeometry {
 					case ZIGZAG -> 0.06f + 0.035f * (float) Math.sin(t * 0.3f + i) + flash * 0.18f;
 					case CANE -> 0.05f + 0.025f * (float) Math.sin(t * 0.2f + i);
 					case FLAME -> 0.11f + 0.05f * (float) Math.sin(t * 0.6f + i * 1.7f);
+						default -> 0.05f;
 				};
 				float[] rHalo = new float[n];
 				float[] rPulse = new float[n];

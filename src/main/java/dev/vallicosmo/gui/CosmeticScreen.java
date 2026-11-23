@@ -86,8 +86,10 @@ public class CosmeticScreen extends Screen {
 	}
 
 	private int[] cardRect(int i) {
-		int h = 42;
-		int gap = 6;
+		// Mehr als 4 Karten: kompakte Karten, damit alle ins Fenster passen
+		boolean compact = Cosmetic.of(tab).size() > 4;
+		int h = compact ? 28 : 42;
+		int gap = compact ? 3 : 6;
 		return new int[] {listX, bodyY + 22 + i * (h + gap), listW, h};
 	}
 
@@ -238,24 +240,25 @@ public class CosmeticScreen extends Screen {
 			if (textRenderer.getWidth(title) > maxW) {
 				title = textRenderer.trimToWidth(title, maxW - 6) + "..";
 			}
-			ctx.drawText(textRenderer, title, r[0] + 12, r[1] + 8, TEXT, true);
-			ctx.drawText(textRenderer, c.rarity.label, r[0] + 12, r[1] + 22, c.rarity.color, false);
+			boolean small = r[3] < 40;
+			ctx.drawText(textRenderer, title, r[0] + 12, r[1] + (small ? 4 : 8), TEXT, true);
+			ctx.drawText(textRenderer, c.rarity.label, r[0] + 12, r[1] + (small ? 16 : 22), c.rarity.color, false);
 
 			int chipX = r[0] + r[2] - 8;
 			if (eq) {
 				String s = "AUSGERÜSTET";
 				int w = textRenderer.getWidth(s) + 8;
 				chipX -= w;
-				ctx.fill(chipX, r[1] + 6, chipX + w, r[1] + 17, Colors.alpha(GREEN, 0.25f));
-				ctx.drawText(textRenderer, s, chipX + 4, r[1] + 8, GREEN, false);
+				ctx.fill(chipX, r[1] + (small ? 3 : 6), chipX + w, r[1] + (small ? 14 : 17), Colors.alpha(GREEN, 0.25f));
+				ctx.drawText(textRenderer, s, chipX + 4, r[1] + (small ? 5 : 8), GREEN, false);
 				chipX -= 4;
 			}
 			if (c.christmas) {
 				String s = "XMAS";
 				int w = textRenderer.getWidth(s) + 8;
 				chipX -= w;
-				ctx.fill(chipX, r[1] + 6, chipX + w, r[1] + 17, 0xFFD0202E);
-				ctx.drawText(textRenderer, s, chipX + 4, r[1] + 8, 0xFFFFFFFF, false);
+				ctx.fill(chipX, r[1] + (small ? 3 : 6), chipX + w, r[1] + (small ? 14 : 17), 0xFFD0202E);
+				ctx.drawText(textRenderer, s, chipX + 4, r[1] + (small ? 5 : 8), 0xFFFFFFFF, false);
 			}
 		}
 	}

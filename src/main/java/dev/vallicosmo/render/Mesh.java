@@ -133,6 +133,101 @@ public final class Mesh {
 		}
 	}
 
+	/**
+	 * Flache, spitz zulaufende Klinge (Feder): Querschnitt ist eine flache Raute mit Mittelgrat.
+	 *
+	 * @param c   Pfadpunkte (x,y,z hintereinander)
+	 * @param w   halbe Breite pro Pfadpunkt (0 = Spitze)
+	 * @param h   halbe Dicke pro Pfadpunkt
+	 * @param ref Normale der Flügelebene (bestimmt, wohin "breit" und "dick" zeigen)
+	 * @param col Farbe je Segment und Seite (0 = oben/vorn-links, 1 = oben/hinten, 2, 3 = untere Hälfte)
+	 */
+	public void blade(float[] c, float[] w, float[] h, int n, float[] ref, ColorFn col) {
+		if (n < 2) {
+			return;
+		}
+		float[][] b1 = new float[n][3];
+		float[][] b2 = new float[n][3];
+		for (int i = 0; i < n; i++) {
+			int i0 = Math.max(i - 1, 0);
+			int i1 = Math.min(i + 1, n - 1);
+			float tx = c[i1 * 3] - c[i0 * 3];
+			float ty = c[i1 * 3 + 1] - c[i0 * 3 + 1];
+			float tz = c[i1 * 3 + 2] - c[i0 * 3 + 2];
+			float tl = len(tx, ty, tz);
+			if (tl < 1e-6f) {
+				tx = 0f;
+				ty = 1f;
+				tz = 0f;
+				tl = 1f;
+			}
+			tx /= tl;
+			ty /= tl;
+			tz /= tl;
+			float bx = ty * ref[2] - tz * ref[1];
+			float by = tz * ref[0] - tx * ref[2];
+			float bz = tx * ref[1] - ty * ref[0];
+			float bl = len(bx, by, bz);
+			if (bl < 1e-4f) {
+				bx = 1f;
+				by = 0f;
+				bz = 0f;
+				bl = 1f;
+			}
+			bx /= bl;
+			by /= bl;
+			bz /= bl;
+			b1[i][0] = bx;
+			b1[i][1] = by;
+			b1[i][2] = bz;
+			b2[i][0] = ty * bz - tz * by;
+			b2[i][1] = tz * bx - tx * bz;
+			b2[i][2] = tx * by - ty * bx;
+		}
+		for (int i = 0; i < n - 1; i++) {
+			for (int k = 0; k < 4; k++) {
+				int color = col.color(i, k);
+				if ((color >>> 24) == 0) {
+					continue;
+				}
+				int k2 = (k + 1) & 3;
+				bladeVertex(c, w, h, b1, b2, i, k, k, color);
+				bladeVertex(c, w, h, b1, b2, i, k2, k, color);
+				bladeVertex(c, w, h, b1, b2, i + 1, k2, k, color);
+				bladeVertex(c, w, h, b1, b2, i + 1, k, k, color);
+			}
+		}
+	}
+
+	/** Eckpunkt k (0: +breit, 1: +dick, 2: -breit, 3: -dick) der Raute am Pfadpunkt i; Normale der Seitenfläche face. */
+	private void bladeVertex(float[] c, float[] w, float[] h, float[][] b1, float[][] b2, int i, int k, int face, int color) {
+		float sw = (k == 0 ? 1f : (k == 2 ? -1f : 0f)) * w[i];
+		float sh = (k == 1 ? 1f : (k == 3 ? -1f : 0f)) * h[i];
+		float x = c[i * 3] + b1[i][0] * sw + b2[i][0] * sh;
+		float y = c[i * 3 + 1] + b1[i][1] * sw + b2[i][1] * sh;
+		float z = c[i * 3 + 2] + b1[i][2] * sw + b2[i][2] * sh;
+		// Seitennormale der Raute: Kante (w,0)->(0,h) hat Normale (h, w), usw.
+		float hw = Math.max(h[i], 0.002f);
+		float ww = Math.max(w[i], 0.002f);
+		float nb1 = (face == 0 || face == 3) ? hw : -hw;
+		float nb2 = (face == 0 || face == 1) ? ww : -ww;
+		float nx = b1[i][0] * nb1 + b2[i][0] * nb2;
+		float ny = b1[i][1] * nb1 + b2[i][1] * nb2;
+		float nz = b1[i][2] * nb1 + b2[i][2] * nb2;
+		float nl = len(nx, ny, nz);
+		if (nl < 1e-6f) {
+			nl = 1f;
+		}
+		sink.vertex(x, y, z, color, nx / nl, ny / nl, nz / nl);
+	}
+
+	/** Einzelnes Viereck (12 Werte: 4 Ecken x,y,z) mit einheitlicher Normale und Farbe. */
+	public void quad(float[] p, float nx, float ny, float nz, int color) {
+		for (int i = 0; i < 4; i++) {
+			sink.vertex(p[i * 3], p[i * 3 + 1], p[i * 3 + 2], color, nx, ny, nz);
+		}
+	}
+
 	/** Kleine Kugel (6-seitige Ringe), z. B. Bommel oder Edelstein. */
 	public void blob(float cx, float cy, float cz, float rad, int color) {
 		float[] c = {
