@@ -30,6 +30,12 @@ public enum Cosmetic {
 		Rarity.EPIC, false, 0xFFB45CFF, 0xFF4DF3FF),
 
 	// --- Heiligenscheine ---
+	HALO_STORM(Category.HALOS, "Sturm-Heiligenschein",
+		"Zickzack-Blitzring in Schwarz-Weiß, passend zu den Sturm-Schwingen. Blitzt im Takt mit ihnen auf.",
+		Rarity.LEGENDARY, false, 0xFFF4F4FB, 0xFF15151C),
+	HALO_CUSTOM(Category.HALOS, "Farb-Heiligenschein",
+		"Deine Farbe: im Menü unten eine Farbe, den Regenbogen oder den Farbbalken wählen.",
+		Rarity.EPIC, false, 0xFFFFC83C, 0xFFFFFFFF),
 	HALO_GOLD(Category.HALOS, "Goldener Heiligenschein",
 		"Ein schwebender Goldring mit einem Lichtpunkt, der ihn umkreist.",
 		Rarity.RARE, false, 0xFFFFC933, 0xFFFFF2A0),

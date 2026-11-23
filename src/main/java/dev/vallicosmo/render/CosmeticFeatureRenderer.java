@@ -55,11 +55,13 @@ public class CosmeticFeatureRenderer extends FeatureRenderer<PlayerEntityRenderS
 
 		Cosmetic halo = CosmeticState.shown(Category.HALOS);
 		if (halo != null) {
+			final int haloRgb = CosmeticState.haloRgb();
+			final boolean haloRainbow = CosmeticState.haloRainbow();
 			matrices.push();
 			model.head.applyTransform(matrices);
 			matrices.translate(0f, -0.72f, 0f);
-			submit(queue, matrices, light, false, m -> HeadGeometry.haloBase(m, halo, t));
-			submit(queue, matrices, light, true, m -> HeadGeometry.haloGlow(m, halo, t));
+			submit(queue, matrices, light, false, m -> HeadGeometry.haloBase(m, halo, t, haloRgb, haloRainbow));
+			submit(queue, matrices, light, true, m -> HeadGeometry.haloGlow(m, halo, t, haloRgb, haloRainbow));
 			matrices.pop();
 		}
 

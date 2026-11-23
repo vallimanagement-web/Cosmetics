@@ -15,6 +15,8 @@ import net.fabricmc.loader.api.FabricLoader;
 public final class CosmeticState {
 	private static final Map<Category, Cosmetic> EQUIPPED = new EnumMap<>(Category.class);
 	private static Cosmetic preview;
+	private static int haloRgb = 0xFFFFC83C;
+	private static boolean haloRainbow;
 
 	/** Vom Command gesetzt, im nächsten Client-Tick öffnet sich das Menü (sonst schließt der Chat es sofort wieder). */
 	public static boolean openRequested;
@@ -39,6 +41,15 @@ public final class CosmeticState {
 		} catch (IOException e) {
 			return;
 		}
+		try {
+			String hc = p.getProperty("HALO_RGB");
+			if (hc != null) {
+				haloRgb = 0xFF000000 | (int) Long.parseLong(hc.trim(), 16);
+			}
+		} catch (NumberFormatException ignored) {
+			// Standardfarbe bleibt
+		}
+		haloRainbow = Boolean.parseBoolean(p.getProperty("HALO_RAINBOW", "false"));
 		for (Category cat : Category.values()) {
 			Cosmetic c = Cosmetic.byName(p.getProperty(cat.name()));
 			if (c != null && c.category == cat) {
@@ -52,6 +63,8 @@ public final class CosmeticState {
 		for (Map.Entry<Category, Cosmetic> e : EQUIPPED.entrySet()) {
 			p.setProperty(e.getKey().name(), e.getValue().name());
 		}
+		p.setProperty("HALO_RGB", Integer.toHexString(haloRgb & 0xFFFFFF));
+		p.setProperty("HALO_RAINBOW", Boolean.toString(haloRainbow));
 		try (OutputStream out = Files.newOutputStream(file())) {
 			p.store(out, "Vallicosmo");
 		} catch (IOException ignored) {
@@ -82,6 +95,29 @@ public final class CosmeticState {
 		} else {
 			EQUIPPED.put(c.category, c);
 		}
+		save();
+	}
+
+	/** Farbe des Farb-Heiligenscheins (ARGB, opak). */
+	public static int haloRgb() {
+		return haloRgb;
+	}
+
+	public static boolean haloRainbow() {
+		return haloRainbow;
+	}
+
+	/** Farbe setzen und den Farb-Heiligenschein gleich ausrüsten. */
+	public static void setHaloColor(int rgb) {
+		haloRgb = 0xFF000000 | (rgb & 0xFFFFFF);
+		haloRainbow = false;
+		EQUIPPED.put(Category.HALOS, Cosmetic.HALO_CUSTOM);
+		save();
+	}
+
+	public static void setHaloRainbow() {
+		haloRainbow = true;
+		EQUIPPED.put(Category.HALOS, Cosmetic.HALO_CUSTOM);
 		save();
 	}
 

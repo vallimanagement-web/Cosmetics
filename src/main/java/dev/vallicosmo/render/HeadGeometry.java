@@ -35,9 +35,51 @@ public final class HeadGeometry {
 		return r;
 	}
 
-	/** Durchgang 1 des Heiligenscheins (solide Röhre). */
+	/** Zickzack-Ring des Sturm-Heiligenscheins (der erste und letzte Punkt sind gleich, damit der Ring schließt). */
+	private static float[] stormRing(float t, float bob) {
+		int n = 49;
+		float[] c = new float[n * 3];
+		for (int i = 0; i < n; i++) {
+			int k = i % (n - 1);
+			double a = 2.0 * Math.PI * i / (n - 1);
+			float rad = 0.31f + ((k & 1) == 0 ? -1f : 1f) * 0.016f * (1f + 0.3f * (float) Math.sin(t * 0.4f + k));
+			c[i * 3] = (float) Math.cos(a) * rad;
+			c[i * 3 + 1] = bob + ((k % 3) - 1) * 0.012f;
+			c[i * 3 + 2] = (float) Math.sin(a) * rad;
+		}
+		return c;
+	}
+
 	public static void haloBase(Mesh m, Cosmetic c, float t) {
+		haloBase(m, c, t, c.primary, false);
+	}
+
+	public static void haloGlow(Mesh m, Cosmetic c, float t) {
+		haloGlow(m, c, t, c.primary, false);
+	}
+
+	/** Durchgang 1 des Heiligenscheins (solide Röhre). rgb/rainbow gelten nur für den Farb-Heiligenschein. */
+	public static void haloBase(Mesh m, Cosmetic c, float t, int rgb, boolean rainbow) {
 		float bob = 0.015f * (float) Math.sin(t * 0.1f);
+		if (c == Cosmetic.HALO_STORM) {
+			int n = 49;
+			m.loft(stormRing(t, bob), constant(n, 0.014f), n, 6, Mesh.REF_Y,
+				(seg, k) -> (k % 3 == 0) ? 0xFFB4B4C6 : 0xFFF4F4FB, false, false);
+			// dunkler Unterring: damit es Schwarz-Grau-Weiß ist
+			float[] low = ring(0.31f, -0.04f, HALO_POINTS, bob);
+			m.loft(low, constant(HALO_POINTS, 0.022f), HALO_POINTS, 6, Mesh.REF_Y,
+				(seg, k) -> (k % 3 == 0) ? 0xFF2A2A34 : 0xFF0E0E14, false, false);
+			return;
+		}
+		if (c == Cosmetic.HALO_CUSTOM) {
+			float[] ringPts = ring(0.31f, 0f, HALO_POINTS, bob);
+			int solid = 0xFF000000 | rgb;
+			m.loft(ringPts, constant(HALO_POINTS, 0.019f), HALO_POINTS, 6, Mesh.REF_Y, (seg, k) -> {
+				int base = rainbow ? Colors.hsv(seg / (float) (HALO_POINTS - 1) + t * 0.01f, 0.9f, 1f) : solid;
+				return (k % 3 == 0) ? Colors.lerp(base, 0xFFFFFFFF, 0.45f) : base;
+			}, false, false);
+			return;
+		}
 		float[] pts = ring(0.31f, 0f, HALO_POINTS, bob);
 		float[] r = constant(HALO_POINTS, c == Cosmetic.HALO_CANDY ? 0.022f : 0.017f);
 		if (c == Cosmetic.HALO_CANDY) {
@@ -52,8 +94,38 @@ public final class HeadGeometry {
 	}
 
 	/** Durchgang 2: Schein + umlaufender Lichtpunkt (additiv). */
-	public static void haloGlow(Mesh m, Cosmetic c, float t) {
+	public static void haloGlow(Mesh m, Cosmetic c, float t, int rgb, boolean rainbow) {
 		float bob = 0.015f * (float) Math.sin(t * 0.1f);
+		if (c == Cosmetic.HALO_STORM) {
+			int n = 49;
+			float[] zz = stormRing(t, bob);
+			float flash = WingGeometry.flash(WingGeometry.styleOf(Cosmetic.WINGS_STORM), t);
+			int halo = Colors.alpha(0xFFE6ECFF, 0.13f + 0.05f * (float) Math.sin(t * 0.3f) + flash * 0.25f);
+			m.loft(zz, constant(n, 0.05f), n, 6, Mesh.REF_Y, (seg, k) -> halo, false, false);
+			float pp = ((t * 0.045f) % 1f) * (n + 6) - 3f;
+			float pp2 = (((t * 0.045f) + 0.5f) % 1f) * (n + 6) - 3f;
+			m.loft(zz, constant(n, 0.026f), n, 6, Mesh.REF_Y, (seg, k) -> {
+				float w1 = Math.max(0f, 1f - Math.abs(seg + 0.5f - pp) / 4f);
+				float w2 = Math.max(0f, 1f - Math.abs(seg + 0.5f - pp2) / 4f);
+				return Colors.alpha(0xFFFFFFFF, Math.min(1f, Math.max(w1, w2) + flash) * 0.95f);
+			}, false, false);
+			return;
+		}
+		if (c == Cosmetic.HALO_CUSTOM) {
+			float[] ringPts = ring(0.31f, 0f, HALO_POINTS, bob);
+			int solid = 0xFF000000 | rgb;
+			float ha = 0.17f + 0.06f * (float) Math.sin(t * 0.2f);
+			m.loft(ringPts, constant(HALO_POINTS, 0.06f), HALO_POINTS, 6, Mesh.REF_Y, (seg, k) -> {
+				int base = rainbow ? Colors.hsv(seg / (float) (HALO_POINTS - 1) + t * 0.01f, 0.9f, 1f) : solid;
+				return Colors.alpha(base, ha);
+			}, false, false);
+			float pp = ((t * 0.02f) % 1f) * (HALO_POINTS + 4) - 2f;
+			m.loft(ringPts, constant(HALO_POINTS, 0.03f), HALO_POINTS, 6, Mesh.REF_Y, (seg, k) -> {
+				float w = Math.max(0f, 1f - Math.abs(seg + 0.5f - pp) / 3f);
+				return Colors.alpha(0xFFFFFFFF, w * 0.95f);
+			}, false, false);
+			return;
+		}
 		float[] pts = ring(0.31f, 0f, HALO_POINTS, bob);
 		int glowRgb = c == Cosmetic.HALO_CANDY ? 0xFFFFC0C8 : c.primary;
 		float a = 0.16f + 0.06f * (float) Math.sin(t * 0.2f);

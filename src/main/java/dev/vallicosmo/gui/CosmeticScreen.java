@@ -28,8 +28,19 @@ public class CosmeticScreen extends Screen {
 	private static final int TEXT_DIM = 0xFF8B94B5;
 	private static final int GREEN = 0xFF3DDC84;
 
+	private static final int CARD_H = 42;
+	private static final int GAP = 6;
+	/** Platz unter der Kartenliste für den Farbwähler (nur im Tab Heiligenscheine). */
+	private static final int PICKER_H = 50;
+	private static final int[] HALO_PRESETS = {
+		0xFFFFFF, 0xFFC83C, 0xFF4B4B, 0xFF8A1F, 0x3DDC84, 0x33D6FF, 0x4D6BFF, 0x9B5CFF, 0xFF5CC8,
+	};
+	private static float lastHue = -1f;
+
 	private Category tab = Category.WINGS;
 	private Cosmetic hovered;
+	/** Index der ersten sichtbaren Karte. */
+	private int scroll;
 
 	// Layout (wird in init() berechnet)
 	private int px;
@@ -85,12 +96,64 @@ public class CosmeticScreen extends Screen {
 		return (System.nanoTime() / 1_000_000L) / 1000f;
 	}
 
+	// ---- Scrollen: es werden immer nur so viele Karten gezeigt, wie ganz hineinpassen
+
+	private int viewH() {
+		return bodyH - 22 - (tab == Category.HALOS ? PICKER_H : 0);
+	}
+
+	private int rows() {
+		return Math.max(1, (viewH() + GAP) / (CARD_H + GAP));
+	}
+
+	private int maxScroll() {
+		return Math.max(0, Cosmetic.of(tab).size() - rows());
+	}
+
+	private void clampScroll() {
+		scroll = Math.max(0, Math.min(scroll, maxScroll()));
+	}
+
+	private boolean scrollbarVisible() {
+		return maxScroll() > 0;
+	}
+
+	private boolean visible(int i) {
+		return i >= scroll && i < scroll + rows();
+	}
+
 	private int[] cardRect(int i) {
-		// Mehr als 4 Karten: kompakte Karten, damit alle ins Fenster passen
-		boolean compact = Cosmetic.of(tab).size() > 4;
-		int h = compact ? 28 : 42;
-		int gap = compact ? 3 : 6;
-		return new int[] {listX, bodyY + 22 + i * (h + gap), listW, h};
+		int w = listW - (scrollbarVisible() ? 10 : 0);
+		return new int[] {listX, bodyY + 22 + (i - scroll) * (CARD_H + GAP), w, CARD_H};
+	}
+
+	private int[] trackRect() {
+		return new int[] {listX + listW - 6, bodyY + 22, 6, rows() * (CARD_H + GAP) - GAP};
+	}
+
+	private int[] upRect() {
+		return new int[] {listX + listW - 30, bodyY + 3, 13, 12};
+	}
+
+	private int[] downRect() {
+		return new int[] {listX + listW - 15, bodyY + 3, 13, 12};
+	}
+
+	// ---- Farbwähler (Tab Heiligenscheine)
+
+	private int pickerY() {
+		return bodyY + bodyH - PICKER_H + 2;
+	}
+
+	private int[] swatchRect(int i) {
+		int n = HALO_PRESETS.length + 1;
+		int gap = 3;
+		int w = (listW - gap * (n - 1)) / n;
+		return new int[] {listX + i * (w + gap), pickerY() + 11, w, 14};
+	}
+
+	private int[] hueRect() {
+		return new int[] {listX, pickerY() + 30, listW, 10};
 	}
 
 	private int[] tabRect(int i) {
@@ -111,8 +174,9 @@ public class CosmeticScreen extends Screen {
 		// Hover bestimmen -> Live-Vorschau am Spieler
 		hovered = null;
 		List<Cosmetic> items = Cosmetic.of(tab);
+		clampScroll();
 		for (int i = 0; i < items.size(); i++) {
-			if (in(mouseX, mouseY, cardRect(i))) {
+			if (visible(i) && in(mouseX, mouseY, cardRect(i))) {
 				hovered = items.get(i);
 			}
 		}
@@ -122,6 +186,9 @@ public class CosmeticScreen extends Screen {
 		drawTabs(ctx, mouseX, mouseY, t);
 		drawPreview(ctx, mouseX, mouseY, t);
 		drawCards(ctx, items, mouseX, mouseY, t);
+		if (tab == Category.HALOS) {
+			drawPicker(ctx, mouseX, mouseY, t);
+		}
 		drawFooter(ctx, mouseX, mouseY);
 		super.render(ctx, mouseX, mouseY, delta);
 	}
@@ -213,7 +280,22 @@ public class CosmeticScreen extends Screen {
 
 	private void drawCards(DrawContext ctx, List<Cosmetic> items, int mouseX, int mouseY, float t) {
 		ctx.drawText(textRenderer, tab.label.toUpperCase(java.util.Locale.ROOT), listX, bodyY + 6, TEXT_DIM, false);
+		if (scrollbarVisible()) {
+			int last = Math.min(items.size(), scroll + rows());
+			String count = (scroll + 1) + "-" + last + " / " + items.size();
+			ctx.drawText(textRenderer, count, upRect()[0] - 6 - textRenderer.getWidth(count), bodyY + 6, TEXT_DIM, false);
+			button(ctx, upRect(), "^", mouseX, mouseY, scroll > 0 ? ACCENT : 0xFF444A66);
+			button(ctx, downRect(), "v", mouseX, mouseY, scroll < maxScroll() ? ACCENT : 0xFF444A66);
+			int[] tr = trackRect();
+			ctx.fill(tr[0], tr[1], tr[0] + tr[2], tr[1] + tr[3], 0x40FFFFFF);
+			int thumbH = Math.max(16, tr[3] * rows() / items.size());
+			int thumbY = tr[1] + (tr[3] - thumbH) * scroll / Math.max(1, maxScroll());
+			ctx.fill(tr[0], thumbY, tr[0] + tr[2], thumbY + thumbH, ACCENT);
+		}
 		for (int i = 0; i < items.size(); i++) {
+			if (!visible(i)) {
+				continue;
+			}
 			Cosmetic c = items.get(i);
 			int[] r = cardRect(i);
 			boolean hov = c == hovered;
@@ -260,6 +342,46 @@ public class CosmeticScreen extends Screen {
 				ctx.fill(chipX, r[1] + (small ? 3 : 6), chipX + w, r[1] + (small ? 14 : 17), 0xFFD0202E);
 				ctx.drawText(textRenderer, s, chipX + 4, r[1] + (small ? 5 : 8), 0xFFFFFFFF, false);
 			}
+		}
+	}
+
+	private void drawPicker(DrawContext ctx, int mouseX, int mouseY, float t) {
+		int y0 = pickerY();
+		ctx.fill(listX, y0 - 3, listX + listW, y0 - 2, Colors.alpha(ACCENT, 0.4f));
+		ctx.drawText(textRenderer, "HALO-FARBE (Farb-Heiligenschein)", listX, y0, TEXT_DIM, false);
+		boolean custom = CosmeticState.isEquipped(Cosmetic.HALO_CUSTOM);
+		for (int i = 0; i <= HALO_PRESETS.length; i++) {
+			int[] r = swatchRect(i);
+			boolean rainbow = i == HALO_PRESETS.length;
+			if (rainbow) {
+				int slices = 6;
+				for (int k = 0; k < slices; k++) {
+					int x1 = r[0] + r[2] * k / slices;
+					int x2 = r[0] + r[2] * (k + 1) / slices;
+					ctx.fill(x1, r[1], x2, r[1] + r[3], Colors.hsv(t * 0.2f + k / (float) slices, 0.9f, 1f));
+				}
+			} else {
+				ctx.fill(r[0], r[1], r[0] + r[2], r[1] + r[3], 0xFF000000 | HALO_PRESETS[i]);
+			}
+			boolean selected = custom && (rainbow ? CosmeticState.haloRainbow()
+				: (!CosmeticState.haloRainbow() && lastHue < 0f && (CosmeticState.haloRgb() & 0xFFFFFF) == HALO_PRESETS[i]));
+			boolean hov = in(mouseX, mouseY, r);
+			ctx.drawStrokedRectangle(r[0], r[1], r[2], r[3], selected ? 0xFFFFFFFF : (hov ? 0xFFB6BEDB : 0x55000000));
+			if (selected) {
+				ctx.drawStrokedRectangle(r[0] - 1, r[1] - 1, r[2] + 2, r[3] + 2, GREEN);
+			}
+		}
+		int[] hr = hueRect();
+		int slices = Math.max(8, hr[2] / 3);
+		for (int k = 0; k < slices; k++) {
+			int x1 = hr[0] + hr[2] * k / slices;
+			int x2 = hr[0] + hr[2] * (k + 1) / slices;
+			ctx.fill(x1, hr[1], x2, hr[1] + hr[3], Colors.hsv(k / (float) slices, 0.9f, 1f));
+		}
+		ctx.drawStrokedRectangle(hr[0], hr[1], hr[2], hr[3], 0x55000000);
+		if (custom && !CosmeticState.haloRainbow() && lastHue >= 0f) {
+			int mx = hr[0] + (int) (lastHue * (hr[2] - 1));
+			ctx.fill(mx - 1, hr[1] - 2, mx + 2, hr[1] + hr[3] + 2, 0xFFFFFFFF);
 		}
 	}
 
@@ -311,6 +433,7 @@ public class CosmeticScreen extends Screen {
 			for (int i = 0; i < cats.length; i++) {
 				if (in(mx, my, tabRect(i))) {
 					tab = cats[i];
+					scroll = 0;
 					hovered = null;
 					CosmeticState.setPreview(null);
 					click();
@@ -319,8 +442,47 @@ public class CosmeticScreen extends Screen {
 			}
 			List<Cosmetic> items = Cosmetic.of(tab);
 			for (int i = 0; i < items.size(); i++) {
-				if (in(mx, my, cardRect(i))) {
+				if (visible(i) && in(mx, my, cardRect(i))) {
 					CosmeticState.toggle(items.get(i));
+					click();
+					return true;
+				}
+			}
+			if (scrollbarVisible()) {
+				if (in(mx, my, upRect())) {
+					scroll--;
+					clampScroll();
+					return true;
+				}
+				if (in(mx, my, downRect())) {
+					scroll++;
+					clampScroll();
+					return true;
+				}
+				int[] tr = trackRect();
+				if (mx >= tr[0] - 3 && mx < tr[0] + tr[2] + 3 && my >= tr[1] && my < tr[1] + tr[3]) {
+					scroll = Math.round(maxScroll() * (float) ((my - tr[1]) / tr[3]));
+					clampScroll();
+					return true;
+				}
+			}
+			if (tab == Category.HALOS) {
+				for (int i = 0; i <= HALO_PRESETS.length; i++) {
+					if (in(mx, my, swatchRect(i))) {
+						if (i == HALO_PRESETS.length) {
+							CosmeticState.setHaloRainbow();
+						} else {
+							lastHue = -1f;
+							CosmeticState.setHaloColor(HALO_PRESETS[i]);
+						}
+						click();
+						return true;
+					}
+				}
+				int[] hr = hueRect();
+				if (in(mx, my, hr)) {
+					lastHue = Math.max(0f, Math.min(1f, (float) ((mx - hr[0]) / hr[2])));
+					CosmeticState.setHaloColor(Colors.hsv(lastHue, 0.9f, 1f));
 					click();
 					return true;
 				}
@@ -337,6 +499,16 @@ public class CosmeticScreen extends Screen {
 			}
 		}
 		return super.mouseClicked(click, doubled);
+	}
+
+	/** Mausrad: eine Karte pro Raste (ohne @Override: sollte sich die Signatur ändern, bleiben Pfeile und Scrollbalken). */
+	public boolean mouseScrolled(double mouseX, double mouseY, double horizontalAmount, double verticalAmount) {
+		if (verticalAmount != 0 && scrollbarVisible()) {
+			scroll -= (int) Math.signum(verticalAmount);
+			clampScroll();
+			return true;
+		}
+		return false;
 	}
 
 	/** Platzhalter für einen Klick-Sound (die Sound-API hat sich in 1.21.11 geändert, daher aktuell ohne Ton). */
