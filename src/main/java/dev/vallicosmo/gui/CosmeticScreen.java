@@ -10,8 +10,6 @@ import net.minecraft.client.gui.Click;
 import net.minecraft.client.gui.DrawContext;
 import net.minecraft.client.gui.screen.Screen;
 import net.minecraft.client.gui.screen.ingame.InventoryScreen;
-import net.minecraft.client.sound.PositionedSoundInstance;
-import net.minecraft.sound.SoundEvents;
 import net.minecraft.text.OrderedText;
 import net.minecraft.text.Text;
 
@@ -338,10 +336,8 @@ public class CosmeticScreen extends Screen {
 		return super.mouseClicked(click, doubled);
 	}
 
+	/** Platzhalter für einen Klick-Sound (die Sound-API hat sich in 1.21.11 geändert, daher aktuell ohne Ton). */
 	private void click() {
-		if (client != null) {
-			client.getSoundManager().play(PositionedSoundInstance.master(SoundEvents.UI_BUTTON_CLICK, 1.0f));
-		}
 	}
 
 	private static float frac(float v) {
